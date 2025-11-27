@@ -1,6 +1,6 @@
 'use client';
 
-import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db';
+import { createCollection, localOnlyCollectionOptions } from '@tanstack/db';
 import type { Customer, Vendor, Product, PurchaseOrder } from '../types';
 
 // Create local-only collections (in-memory, no sync layer)
