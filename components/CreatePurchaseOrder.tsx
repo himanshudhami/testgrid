@@ -108,7 +108,7 @@ export function CreatePurchaseOrder() {
     }
   };
 
-  const handleCreateOrder = async () => {
+  const handleCreateOrder = () => {
     if (!selectedCustomer || !selectedVendor || selectedProducts.length === 0) {
       alert('Please select a customer, vendor, and at least one product');
       return;
@@ -134,7 +134,7 @@ export function CreatePurchaseOrder() {
       updatedAt: new Date(),
     };
 
-    await addPurchaseOrder(order);
+    addPurchaseOrder(order);
 
     // Reset form
     setSelectedCustomer(null);

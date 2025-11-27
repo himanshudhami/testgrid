@@ -59,10 +59,10 @@ export function PerformanceDemo() {
   const totalProducts = useDb ? dbProducts.length : rawProducts.length;
 
   // Simulate data update
-  const handleSimulateUpdate = async () => {
+  const handleSimulateUpdate = () => {
     const randomProduct = dbProducts[Math.floor(Math.random() * dbProducts.length)];
     if (randomProduct) {
-      await productsCollection.update(randomProduct.id, (draft) => {
+      productsCollection.update(randomProduct.id, (draft) => {
         (draft as any).stock = Math.floor(Math.random() * 1000);
       });
 

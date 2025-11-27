@@ -28,34 +28,30 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
+    setIsLoading(true);
 
-      // Generate sample data
-      const customers = generateCustomers(5000);
-      const vendors = generateVendors(5000);
-      const products = generateProducts(5000, vendors);
-      const purchaseOrders = generatePurchaseOrders(100, customers, vendors, products);
+    // Generate sample data
+    const customers = generateCustomers(5000);
+    const vendors = generateVendors(5000);
+    const products = generateProducts(5000, vendors);
+    const purchaseOrders = generatePurchaseOrders(100, customers, vendors, products);
 
-      // Initialize database
-      await initializeDatabase({
-        customers,
-        vendors,
-        products,
-        purchaseOrders,
-      });
+    // Initialize database (synchronous for local-only collections)
+    initializeDatabase({
+      customers,
+      vendors,
+      products,
+      purchaseOrders,
+    });
 
-      setDataStats({
-        customers: customers.length,
-        vendors: vendors.length,
-        products: products.length,
-        orders: purchaseOrders.length,
-      });
+    setDataStats({
+      customers: customers.length,
+      vendors: vendors.length,
+      products: products.length,
+      orders: purchaseOrders.length,
+    });
 
-      setIsLoading(false);
-    };
-
-    loadData();
+    setIsLoading(false);
   }, []);
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
