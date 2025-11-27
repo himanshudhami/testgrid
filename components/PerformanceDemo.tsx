@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
 import { productsCollection } from '@/lib/db/client';
 import type { Product } from '@/lib/types';
 
 export function PerformanceDemo() {
+  const renderCountRef = useRef(0);
   const [renderCount, setRenderCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [useDb, setUseDb] = useState(true);
@@ -25,10 +26,13 @@ export function PerformanceDemo() {
     loadProducts();
   }, [updateTrigger]);
 
-  // Track renders
+  // Track renders using ref (doesn't cause re-render)
+  renderCountRef.current += 1;
+
+  // Sync render count to state when meaningful changes occur
   useEffect(() => {
-    setRenderCount((c) => c + 1);
-  });
+    setRenderCount(renderCountRef.current);
+  }, [useDb, searchTerm, dbProducts, rawProducts]);
 
   // Filtered results
   const filteredDbProducts = useMemo(() => {
@@ -106,6 +110,7 @@ export function PerformanceDemo() {
                 checked={useDb}
                 onChange={(e) => {
                   setUseDb(e.target.checked);
+                  renderCountRef.current = 0;
                   setRenderCount(0);
                 }}
                 className="w-4 h-4"
