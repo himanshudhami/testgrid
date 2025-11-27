@@ -8,24 +8,36 @@ export const customersCollection = createCollection<Customer, string>({
   id: 'customers',
   getKey: (customer) => customer.id,
   sync: { sync: () => {} },
+  onInsert: async () => {}, // No-op handler for local-only data
+  onUpdate: async () => {},
+  onDelete: async () => {},
 });
 
 export const vendorsCollection = createCollection<Vendor, string>({
   id: 'vendors',
   getKey: (vendor) => vendor.id,
   sync: { sync: () => {} },
+  onInsert: async () => {},
+  onUpdate: async () => {},
+  onDelete: async () => {},
 });
 
 export const productsCollection = createCollection<Product, string>({
   id: 'products',
   getKey: (product) => product.id,
   sync: { sync: () => {} },
+  onInsert: async () => {},
+  onUpdate: async () => {},
+  onDelete: async () => {},
 });
 
 export const purchaseOrdersCollection = createCollection<PurchaseOrder, string>({
   id: 'purchaseOrders',
   getKey: (order) => order.id,
   sync: { sync: () => {} },
+  onInsert: async () => {},
+  onUpdate: async () => {},
+  onDelete: async () => {},
 });
 
 // Helper to initialize database with data
