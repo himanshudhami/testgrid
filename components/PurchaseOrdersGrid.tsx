@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DataGrid, type Column } from 'react-data-grid';
+import { DataGrid, type Column, type SortColumn } from 'react-data-grid';
 import { useLiveQuery } from '@tanstack/react-db';
 import { purchaseOrdersCollection, customersCollection, vendorsCollection } from '@/lib/db/client';
 import type { PurchaseOrder, Customer, Vendor } from '@/lib/types';
+import { sortRows } from '@/lib/utils/sorting';
 import 'react-data-grid/lib/styles.css';
 
 interface PurchaseOrderWithDetails extends PurchaseOrder {
@@ -14,16 +15,26 @@ interface PurchaseOrderWithDetails extends PurchaseOrder {
 }
 
 export function PurchaseOrdersGrid() {
-  const [sortColumn, setSortColumn] = useState<string>('createdAt');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([
+    { columnKey: 'createdAt', direction: 'DESC' },
+  ]);
 
   // Use TanStack DB reactive queries with joins
   const { data: ordersData } = useLiveQuery(() => purchaseOrdersCollection);
   const { data: customersData } = useLiveQuery(() => customersCollection);
   const { data: vendorsData } = useLiveQuery(() => vendorsCollection);
-  const orders = (ordersData ?? []) as unknown as PurchaseOrder[];
-  const customers = (customersData ?? []) as unknown as Customer[];
-  const vendors = (vendorsData ?? []) as unknown as Vendor[];
+  const orders = useMemo(
+    () => (ordersData ?? []) as unknown as PurchaseOrder[],
+    [ordersData]
+  );
+  const customers = useMemo(
+    () => (customersData ?? []) as unknown as Customer[],
+    [customersData]
+  );
+  const vendors = useMemo(
+    () => (vendorsData ?? []) as unknown as Vendor[],
+    [vendorsData]
+  );
 
   // Join orders with customer and vendor data
   const ordersWithDetails = useMemo<PurchaseOrderWithDetails[]>(() => {
@@ -41,19 +52,10 @@ export function PurchaseOrdersGrid() {
   }, [orders, customers, vendors]);
 
   // Sort orders
-  const sortedOrders = useMemo(() => {
-    return [...ordersWithDetails].sort((a, b) => {
-      const aVal = a[sortColumn as keyof PurchaseOrderWithDetails];
-      const bVal = b[sortColumn as keyof PurchaseOrderWithDetails];
-
-      if (aVal === undefined) return 1;
-      if (bVal === undefined) return -1;
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [ordersWithDetails, sortColumn, sortDirection]);
+  const sortedOrders = useMemo(
+    () => sortRows(ordersWithDetails, sortColumns),
+    [ordersWithDetails, sortColumns]
+  );
 
   const columns: Column<PurchaseOrderWithDetails>[] = [
     { key: 'orderNumber', name: 'Order Number', width: 180, frozen: true },
@@ -108,15 +110,6 @@ export function PurchaseOrdersGrid() {
     },
   ];
 
-  const handleSort = (columnKey: string) => {
-    if (sortColumn === columnKey) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(columnKey);
-      setSortDirection('asc');
-    }
-  };
-
   return (
     <div className="w-full h-full flex flex-col gap-4">
       <div className="flex gap-4 items-center">
@@ -136,6 +129,8 @@ export function PurchaseOrdersGrid() {
           style={{ height: '600px' }}
           headerRowHeight={40}
           rowHeight={45}
+          sortColumns={sortColumns}
+          onSortColumnsChange={setSortColumns}
         />
       </div>
     </div>

@@ -33,12 +33,35 @@ export const purchaseOrdersCollection = createCollection(
 );
 
 // Helper to initialize database with data
+function getCollectionSize<T extends object>(collection: { values: () => IterableIterator<T>; size?: number }) {
+  return typeof collection.size === 'number'
+    ? collection.size
+    : Array.from(collection.values()).length;
+}
+
+export function getCollectionCounts() {
+  return {
+    customers: getCollectionSize(customersCollection),
+    vendors: getCollectionSize(vendorsCollection),
+    products: getCollectionSize(productsCollection),
+    orders: getCollectionSize(purchaseOrdersCollection),
+  };
+}
+
 export function initializeDatabase(data: {
   customers: Customer[];
   vendors: Vendor[];
   products: Product[];
   purchaseOrders?: PurchaseOrder[];
 }) {
+  const existingCounts = getCollectionCounts();
+  const alreadySeeded = Object.values(existingCounts).some((count) => count > 0);
+
+  if (alreadySeeded) {
+    console.info('Database already has data, skipping re-seed');
+    return existingCounts;
+  }
+
   console.log('Initializing database with:', {
     customers: data.customers.length,
     vendors: data.vendors.length,
@@ -46,22 +69,17 @@ export function initializeDatabase(data: {
     purchaseOrders: data.purchaseOrders?.length ?? 0,
   });
 
-  // Insert new data - no await needed for local collections
-  data.customers.forEach(customer => customersCollection.insert(customer));
-  console.log('Customers inserted:', customersCollection.size);
+  customersCollection.insert(data.customers);
+  vendorsCollection.insert(data.vendors);
+  productsCollection.insert(data.products);
 
-  data.vendors.forEach(vendor => vendorsCollection.insert(vendor));
-  console.log('Vendors inserted:', vendorsCollection.size);
-
-  data.products.forEach(product => productsCollection.insert(product));
-  console.log('Products inserted:', productsCollection.size);
-
-  if (data.purchaseOrders) {
-    data.purchaseOrders.forEach(order => purchaseOrdersCollection.insert(order));
-    console.log('Purchase orders inserted:', purchaseOrdersCollection.size);
+  if (data.purchaseOrders?.length) {
+    purchaseOrdersCollection.insert(data.purchaseOrders);
   }
 
-  console.log('Database initialization complete');
+  const seededCounts = getCollectionCounts();
+  console.log('Database initialization complete', seededCounts);
+  return seededCounts;
 }
 
 // Helper to add a purchase order

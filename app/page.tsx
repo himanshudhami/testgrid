@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CustomersGrid } from '@/components/CustomersGrid';
 import { VendorsGrid } from '@/components/VendorsGrid';
 import { ProductsGrid } from '@/components/ProductsGrid';
 import { CreatePurchaseOrder } from '@/components/CreatePurchaseOrder';
 import { PurchaseOrdersGrid } from '@/components/PurchaseOrdersGrid';
 import { PerformanceDemo } from '@/components/PerformanceDemo';
-import { initializeDatabase } from '@/lib/db/client';
+import { getCollectionCounts, initializeDatabase } from '@/lib/db/client';
 import {
   generateCustomers,
   generateVendors,
@@ -17,50 +17,51 @@ import {
 
 type Tab = 'customers' | 'vendors' | 'products' | 'create-po' | 'purchase-orders' | 'performance';
 
+type DataStats = {
+  customers: number;
+  vendors: number;
+  products: number;
+  orders: number;
+};
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('performance');
-  const [isLoading, setIsLoading] = useState(true);
-  const [dataStats, setDataStats] = useState({
-    customers: 0,
-    vendors: 0,
-    products: 0,
-    orders: 0,
-  });
+  const [dataStats, setDataStats] = useState<DataStats | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsLoading(true);
+    setIsClient(true);
+    const existingCounts = getCollectionCounts();
+    const hasSeededData = Object.values(existingCounts).some((count) => count > 0);
 
-    // Generate sample data
-    const customers = generateCustomers(5000);
-    const vendors = generateVendors(5000);
-    const products = generateProducts(5000, vendors);
-    const purchaseOrders = generatePurchaseOrders(100, customers, vendors, products);
+    if (hasSeededData) {
+      setDataStats(existingCounts);
+    } else {
+      // Generate sample data
+      const customers = generateCustomers(5000);
+      const vendors = generateVendors(5000);
+      const products = generateProducts(5000, vendors);
+      const purchaseOrders = generatePurchaseOrders(100, customers, vendors, products);
 
-    // Initialize database (synchronous for local-only collections)
-    initializeDatabase({
-      customers,
-      vendors,
-      products,
-      purchaseOrders,
-    });
-
-    setDataStats({
-      customers: customers.length,
-      vendors: vendors.length,
-      products: products.length,
-      orders: purchaseOrders.length,
-    });
-
-    setIsLoading(false);
+      const stats = initializeDatabase({
+        customers,
+        vendors,
+        products,
+        purchaseOrders,
+      });
+      setDataStats(stats);
+    }
   }, []);
+
+  const isLoading = !isClient || !dataStats;
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'performance', label: 'Performance Demo' },
-    { id: 'customers', label: 'Customers', badge: dataStats.customers },
-    { id: 'vendors', label: 'Vendors', badge: dataStats.vendors },
-    { id: 'products', label: 'Products', badge: dataStats.products },
+    { id: 'customers', label: 'Customers', badge: dataStats?.customers },
+    { id: 'vendors', label: 'Vendors', badge: dataStats?.vendors },
+    { id: 'products', label: 'Products', badge: dataStats?.products },
     { id: 'create-po', label: 'Create Purchase Order' },
-    { id: 'purchase-orders', label: 'Purchase Orders', badge: dataStats.orders },
+    { id: 'purchase-orders', label: 'Purchase Orders', badge: dataStats?.orders },
   ];
 
   if (isLoading) {
@@ -127,9 +128,9 @@ export default function Home() {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
           <p>
-            Demo app showcasing TanStack DB with {dataStats.customers.toLocaleString()}{' '}
-            customers, {dataStats.vendors.toLocaleString()} vendors, and{' '}
-            {dataStats.products.toLocaleString()} products
+            Demo app showcasing TanStack DB with {dataStats?.customers.toLocaleString()}{' '}
+            customers, {dataStats?.vendors.toLocaleString()} vendors, and{' '}
+            {dataStats?.products.toLocaleString()} products
           </p>
           <p className="mt-2">
             Built with Next.js, TanStack DB, and React Data Grid

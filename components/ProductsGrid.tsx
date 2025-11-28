@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DataGrid, type Column } from 'react-data-grid';
+import { DataGrid, type Column, type SortColumn } from 'react-data-grid';
 import { useLiveQuery } from '@tanstack/react-db';
 import { productsCollection, vendorsCollection } from '@/lib/db/client';
 import type { Product, Vendor } from '@/lib/types';
+import { sortRows } from '@/lib/utils/sorting';
 import 'react-data-grid/lib/styles.css';
 
 interface ProductWithVendor extends Product {
@@ -13,20 +14,26 @@ interface ProductWithVendor extends Product {
 }
 
 interface Props {
-  onSelectProduct?: (product: Product) => void;
   selectedVendorId?: string;
 }
 
-export function ProductsGrid({ onSelectProduct, selectedVendorId }: Props) {
+export function ProductsGrid({ selectedVendorId }: Props) {
   const [searchText, setSearchText] = useState('');
-  const [sortColumn, setSortColumn] = useState<string>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([
+    { columnKey: 'name', direction: 'ASC' },
+  ]);
 
   // Use TanStack DB reactive queries
   const { data: productsData } = useLiveQuery(() => productsCollection);
   const { data: vendorsData } = useLiveQuery(() => vendorsCollection);
-  const products = (productsData ?? []) as unknown as Product[];
-  const vendors = (vendorsData ?? []) as unknown as Vendor[];
+  const products = useMemo(
+    () => (productsData ?? []) as unknown as Product[],
+    [productsData]
+  );
+  const vendors = useMemo(
+    () => (vendorsData ?? []) as unknown as Vendor[],
+    [vendorsData]
+  );
 
   // Join products with vendor data
   const productsWithVendor = useMemo<ProductWithVendor[]>(() => {
@@ -40,7 +47,7 @@ export function ProductsGrid({ onSelectProduct, selectedVendorId }: Props) {
     });
   }, [products, vendors]);
 
-  // Filter and sort products
+  // Filter products
   const filteredProducts = useMemo(() => {
     let filtered = productsWithVendor;
 
@@ -61,21 +68,13 @@ export function ProductsGrid({ onSelectProduct, selectedVendorId }: Props) {
       );
     }
 
-    // Sort
-    filtered = [...filtered].sort((a, b) => {
-      const aVal = a[sortColumn as keyof ProductWithVendor];
-      const bVal = b[sortColumn as keyof ProductWithVendor];
-
-      if (aVal === undefined) return 1;
-      if (bVal === undefined) return -1;
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
     return filtered;
-  }, [productsWithVendor, searchText, sortColumn, sortDirection, selectedVendorId]);
+  }, [productsWithVendor, searchText, selectedVendorId]);
+
+  const sortedProducts = useMemo(
+    () => sortRows(filteredProducts, sortColumns),
+    [filteredProducts, sortColumns]
+  );
 
   const columns: Column<ProductWithVendor>[] = [
     { key: 'id', name: 'ID', width: 100, frozen: true },
@@ -88,15 +87,6 @@ export function ProductsGrid({ onSelectProduct, selectedVendorId }: Props) {
     { key: 'vendorCompany', name: 'Vendor', width: 180, sortable: true },
   ];
 
-  const handleSort = (columnKey: string) => {
-    if (sortColumn === columnKey) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(columnKey);
-      setSortDirection('asc');
-    }
-  };
-
   return (
     <div className="w-full h-full flex flex-col gap-4">
       <div className="flex gap-4 items-center">
@@ -108,19 +98,21 @@ export function ProductsGrid({ onSelectProduct, selectedVendorId }: Props) {
           className="px-4 py-2 border border-gray-300 rounded-lg flex-1 max-w-md"
         />
         <div className="text-sm text-gray-600">
-          Showing {filteredProducts.length} of {products.length} products
+          Showing {sortedProducts.length} of {products.length} products
         </div>
       </div>
 
       <div className="flex-1 min-h-0">
         <DataGrid
           columns={columns}
-          rows={filteredProducts}
+          rows={sortedProducts}
           rowKeyGetter={(row) => row.id}
           className="fill-grid"
           style={{ height: '600px' }}
           headerRowHeight={40}
           rowHeight={35}
+          sortColumns={sortColumns}
+          onSortColumnsChange={setSortColumns}
         />
       </div>
     </div>

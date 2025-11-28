@@ -13,12 +13,11 @@ A high-performance purchase order management application demonstrating the power
 
 ## Tech Stack
 
-- **Next.js 15** - React framework with App Router
-- **TanStack DB** - Embedded client-side database with reactive queries
-- **React Data Grid** - High-performance data grid component
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling
-- **Faker.js** - Realistic sample data generation
+- **Next.js 16** - App Router + React 19 client components
+- **TanStack DB 0.5** - Embedded client-side database with reactive queries
+- **React Data Grid v7 (beta)** - Virtualized data grid with built-in sorting
+- **TypeScript** and **Tailwind 4** for typing/styling
+- **Faker.js** for sample data generation
 
 ## How TanStack DB Makes This App Faster
 
@@ -89,10 +88,10 @@ The app will automatically generate 15,000+ sample records on first load.
 
 ```
 ├── app/
-│   ├── layout.tsx          # Root layout with DatabaseProvider
-│   └── page.tsx            # Main app with tabbed interface
+│   ├── layout.tsx          # Root layout
+│   └── page.tsx            # Main app with tabbed interface and seeding guard
 ├── components/
-│   ├── CustomersGrid.tsx   # Customer data grid
+│   ├── CustomersGrid.tsx   # Customer data grid with live sorting
 │   ├── VendorsGrid.tsx     # Vendor data grid
 │   ├── ProductsGrid.tsx    # Product data grid with vendor joins
 │   ├── CreatePurchaseOrder.tsx  # PO creation form
@@ -101,10 +100,11 @@ The app will automatically generate 15,000+ sample records on first load.
 ├── lib/
 │   ├── types.ts            # TypeScript interfaces
 │   ├── db/
-│   │   ├── client.ts       # TanStack DB configuration
-│   │   └── provider.tsx    # DB context provider
-│   └── data/
-│       └── generator.ts    # Sample data generators
+│   │   └── client.ts       # TanStack DB collections + seed helpers
+│   ├── data/
+│   │   └── generator.ts    # Sample data generators
+│   └── utils/
+│       └── sorting.ts      # Shared comparators for React Data Grid
 └── README.md
 ```
 
@@ -112,27 +112,23 @@ The app will automatically generate 15,000+ sample records on first load.
 
 ### TanStack DB Setup
 
-The database is configured with four collections:
+The database is configured with four local-only collections and seeded on first load:
 
 ```typescript
-export const db = createDB({
-  collections: {
-    customers: { schema: {} as Customer, primaryKey: 'id' },
-    vendors: { schema: {} as Vendor, primaryKey: 'id' },
-    products: { schema: {} as Product, primaryKey: 'id' },
-    purchaseOrders: { schema: {} as PurchaseOrder, primaryKey: 'id' },
-  },
-});
+export const customersCollection = createCollection(
+  localOnlyCollectionOptions<Customer>({
+    id: 'customers',
+    getKey: (customer) => customer.id,
+  })
+);
 ```
 
 ### Reactive Queries
 
-Components use `useQuery` for automatic reactivity:
+Components use `useLiveQuery` for automatic reactivity:
 
 ```typescript
-const { data: products = [] } = useQuery(
-  db.collections.products.findMany()
-);
+const { data: vendors } = useLiveQuery(() => vendorsCollection);
 ```
 
 ### Cross-Collection Joins
@@ -158,6 +154,11 @@ Based on TanStack DB benchmarks:
 | Update single row | ~0.7ms | Incremental update, not full re-query |
 | Cross-collection join | < 1ms | Even with complex relationships |
 | Re-render optimization | Fine-grained | Only affected components update |
+
+## Notes on the Demo
+
+- The seed routine skips re-initializing TanStack DB if data already exists (avoids duplicate rows during fast refresh).
+- Data grids use `sortColumns` from React Data Grid v7 to keep UI sorting consistent with the latest API.
 
 ## Features Demonstrated
 

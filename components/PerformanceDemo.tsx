@@ -7,31 +7,54 @@ import type { Product } from '@/lib/types';
 
 export function PerformanceDemo() {
   const renderCountRef = useRef(0);
+  const renderCountDbRef = useRef(0);
+  const renderCountNoDbRef = useRef(0);
   const [renderCount, setRenderCount] = useState(0);
+  const [renderCountDb, setRenderCountDb] = useState(0);
+  const [renderCountNoDb, setRenderCountNoDb] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [useDb, setUseDb] = useState(true);
-  const [rawProducts, setRawProducts] = useState<Product[]>([]);
   const [updateTrigger, setUpdateTrigger] = useState(0);
+  const [isClient, setIsClient] = useState(false);
+  const [lastUpdatedId, setLastUpdatedId] = useState<string | null>(null);
+  const [lastUpdatedProduct, setLastUpdatedProduct] = useState<{ name: string; stock: number } | null>(null);
 
-  // TanStack DB query (reactive)
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // TanStack DB query (reactive) - always call, use isClient to decide what to use
   const { data: dbProductsData } = useLiveQuery(() => productsCollection);
-  const dbProducts = (dbProductsData ?? []) as unknown as Product[];
+  const dbProducts = useMemo(
+    () => {
+      if (!isClient) return [];
+      return (dbProductsData ?? []) as unknown as Product[];
+    },
+    [dbProductsData, isClient]
+  );
 
   // Load raw products once
-  useEffect(() => {
-    const loadProducts = async () => {
-      const products = Array.from(productsCollection.values()) as unknown as Product[];
-      setRawProducts(products);
-    };
-    loadProducts();
-  }, [updateTrigger]);
+  const rawProducts = useMemo(
+    () => {
+      // Depend on manual trigger to refresh when simulating non-DB updates
+      void updateTrigger;
+      return Array.from(productsCollection.values()) as unknown as Product[];
+    },
+    [updateTrigger]
+  );
 
-  // Track renders using ref (doesn't cause re-render)
-  renderCountRef.current += 1;
-
-  // Sync render count to state when meaningful changes occur
+  // Track renders using refs (doesn't cause re-render)
   useEffect(() => {
+    renderCountRef.current += 1;
     setRenderCount(renderCountRef.current);
+    
+    if (useDb) {
+      renderCountDbRef.current += 1;
+      setRenderCountDb(renderCountDbRef.current);
+    } else {
+      renderCountNoDbRef.current += 1;
+      setRenderCountNoDb(renderCountNoDbRef.current);
+    }
   }, [useDb, searchTerm, dbProducts, rawProducts]);
 
   // Filtered results
@@ -58,18 +81,27 @@ export function PerformanceDemo() {
   const displayProducts = useDb ? filteredDbProducts : filteredRawProducts;
   const totalProducts = useDb ? dbProducts.length : rawProducts.length;
 
-  // Simulate data update
+  // Simulate data update - use rawProducts since it's always populated
   const handleSimulateUpdate = () => {
-    const randomProduct = dbProducts[Math.floor(Math.random() * dbProducts.length)];
+    const randomProduct = rawProducts[Math.floor(Math.random() * rawProducts.length)];
     if (randomProduct) {
+      const newStock = Math.floor(Math.random() * 1000);
       productsCollection.update(randomProduct.id, (draft) => {
-        (draft as any).stock = Math.floor(Math.random() * 1000);
+        draft.stock = newStock;
       });
-
+      setLastUpdatedId(randomProduct.id);
+      setLastUpdatedProduct({ name: randomProduct.name, stock: newStock });
+      
       // For non-DB mode, we need to manually reload
       if (!useDb) {
         setUpdateTrigger((t) => t + 1);
       }
+      
+      // Clear the highlight and notification after 2 seconds
+      setTimeout(() => {
+        setLastUpdatedId(null);
+        setLastUpdatedProduct(null);
+      }, 2000);
     }
   };
 
@@ -103,7 +135,16 @@ export function PerformanceDemo() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex gap-4 items-center">
+           {lastUpdatedProduct && (
+             <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded animate-pulse">
+               <div className="flex items-center gap-2">
+                 <span className="text-yellow-800 font-semibold">✓ Updated:</span>
+                 <span className="text-yellow-800">{lastUpdatedProduct.name}</span>
+                 <span className="text-yellow-700 font-bold">Stock: {lastUpdatedProduct.stock}</span>
+               </div>
+             </div>
+           )}
+           <div className="flex gap-4 items-center">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -127,11 +168,19 @@ export function PerformanceDemo() {
               Simulate Data Update
             </button>
 
-            <div className="ml-auto text-sm">
-              <span className="font-medium">Renders:</span>{' '}
-              <span className={renderCount > 5 ? 'text-red-600' : 'text-green-600'}>
-                {renderCount}
-              </span>
+            <div className="ml-auto flex gap-6 text-sm">
+              <div>
+                <span className="font-medium">DB Mode Renders:</span>{' '}
+                <span className={renderCountDb > 10 ? 'text-red-600' : 'text-green-600'}>
+                  {renderCountDb}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium">Non-DB Mode Renders:</span>{' '}
+                <span className={renderCountNoDb > 10 ? 'text-red-600' : 'text-green-600'}>
+                  {renderCountNoDb}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -156,18 +205,24 @@ export function PerformanceDemo() {
             <div className="max-h-96 overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {displayProducts.slice(0, 50).map((product) => (
-                  <div
-                    key={product.id}
-                    className="p-3 bg-white border border-gray-200 rounded"
-                  >
-                    <div className="font-medium text-sm truncate">{product.name}</div>
-                    <div className="text-xs text-gray-600">{product.category}</div>
-                    <div className="text-sm font-semibold text-green-600">
-                      ${product.price.toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-500">Stock: {product.stock}</div>
-                  </div>
-                ))}
+                   <div
+                     key={product.id}
+                     className={`p-3 border rounded transition-colors ${
+                       lastUpdatedId === product.id
+                         ? 'bg-yellow-100 border-yellow-400'
+                         : 'bg-white border-gray-200'
+                     }`}
+                   >
+                     <div className="font-medium text-sm truncate">{product.name}</div>
+                     <div className="text-xs text-gray-600">{product.category}</div>
+                     <div className="text-sm font-semibold text-green-600">
+                       ${product.price.toFixed(2)}
+                     </div>
+                     <div className={`text-xs ${lastUpdatedId === product.id ? 'font-bold text-yellow-700' : 'text-gray-500'}`}>
+                       Stock: {product.stock}
+                     </div>
+                   </div>
+                 ))}
               </div>
             </div>
           </div>
@@ -175,16 +230,16 @@ export function PerformanceDemo() {
           {!useDb && (
             <div className="bg-yellow-50 border border-yellow-200 p-3 rounded text-sm">
               <strong>Note:</strong> Without TanStack DB, data updates require manual
-              refetching. Click "Simulate Data Update" and notice that the UI doesn't
-              update automatically.
+              refetching. Click the Simulate Data Update button and notice the UI does
+              not update automatically.
             </div>
           )}
 
           {useDb && (
             <div className="bg-green-50 border border-green-200 p-3 rounded text-sm">
               <strong>Note:</strong> With TanStack DB, data updates are reactive. Click
-              "Simulate Data Update" and the UI updates automatically without manual
-              intervention.
+              the Simulate Data Update button and the UI updates automatically without
+              manual intervention.
             </div>
           )}
         </div>
@@ -216,6 +271,47 @@ export function PerformanceDemo() {
               Customers, vendors, products with instant queries
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-bold mb-4">Live Comparison: Click "Simulate Data Update" Multiple Times</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Switch between DB and Non-DB modes and click the button several times. Watch how TanStack DB only re-renders when needed, while the non-DB version causes full re-renders on every update.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+            <h4 className="font-bold text-green-800 mb-2">With TanStack DB (Reactive)</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Re-renders on this tab:</span>
+                <span className="font-bold text-green-600">{renderCountDb}</span>
+              </div>
+              <ul className="text-xs text-gray-700 space-y-1 ml-4">
+                <li>✓ Only re-renders when reactive data changes</li>
+                <li>✓ Fine-grained updates to specific products</li>
+                <li>✓ Efficient: few re-renders even with many updates</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+            <h4 className="font-bold text-red-800 mb-2">Without TanStack DB (Manual State)</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Re-renders on this tab:</span>
+                <span className="font-bold text-red-600">{renderCountNoDb}</span>
+              </div>
+              <ul className="text-xs text-gray-700 space-y-1 ml-4">
+                <li>✗ Full re-render needed after each update</li>
+                <li>✗ Requires manual state management</li>
+                <li>✗ Performance degrades with more data</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+          <strong>Tip:</strong> Switch back and forth between modes while clicking "Simulate Data Update" to see the dramatic difference in render efficiency. TanStack DB uses reactive queries to only update the specific products that changed.
         </div>
       </div>
     </div>

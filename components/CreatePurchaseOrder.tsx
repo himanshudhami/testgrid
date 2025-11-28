@@ -24,9 +24,18 @@ export function CreatePurchaseOrder() {
   const { data: vendorsData } = useLiveQuery(() => vendorsCollection);
   const { data: productsData } = useLiveQuery(() => productsCollection);
 
-  const customers = (customersData ?? []) as unknown as Customer[];
-  const vendors = (vendorsData ?? []) as unknown as Vendor[];
-  const products = (productsData ?? []) as unknown as Product[];
+  const customers = useMemo(
+    () => (customersData ?? []) as unknown as Customer[],
+    [customersData]
+  );
+  const vendors = useMemo(
+    () => (vendorsData ?? []) as unknown as Vendor[],
+    [vendorsData]
+  );
+  const products = useMemo(
+    () => (productsData ?? []) as unknown as Product[],
+    [productsData]
+  );
 
   // Filter customers
   const filteredCustomers = useMemo(() => {

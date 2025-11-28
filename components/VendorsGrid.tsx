@@ -1,52 +1,44 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DataGrid, type Column } from 'react-data-grid';
+import { DataGrid, type Column, type SortColumn } from 'react-data-grid';
 import { useLiveQuery } from '@tanstack/react-db';
 import { vendorsCollection } from '@/lib/db/client';
 import type { Vendor } from '@/lib/types';
+import { sortRows } from '@/lib/utils/sorting';
 import 'react-data-grid/lib/styles.css';
 
-interface Props {
-  onSelectVendor?: (vendor: Vendor) => void;
-}
-
-export function VendorsGrid({ onSelectVendor }: Props) {
+export function VendorsGrid() {
   const [searchText, setSearchText] = useState('');
-  const [sortColumn, setSortColumn] = useState<string>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([
+    { columnKey: 'name', direction: 'ASC' },
+  ]);
 
   // Use TanStack DB reactive query
   const { data: vendorsData } = useLiveQuery(() => vendorsCollection);
-  const vendors = (vendorsData ?? []) as unknown as Vendor[];
+  const vendors = useMemo(
+    () => (vendorsData ?? []) as unknown as Vendor[],
+    [vendorsData]
+  );
 
-  // Filter and sort vendors
+  // Filter vendors
   const filteredVendors = useMemo(() => {
-    let filtered = vendors;
+    if (!searchText) return vendors;
 
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      filtered = vendors.filter(
-        (v) =>
-          v.name.toLowerCase().includes(search) ||
-          v.email.toLowerCase().includes(search) ||
-          v.company.toLowerCase().includes(search) ||
-          v.category.toLowerCase().includes(search)
-      );
-    }
+    const search = searchText.toLowerCase();
+    return vendors.filter(
+      (v) =>
+        v.name.toLowerCase().includes(search) ||
+        v.email.toLowerCase().includes(search) ||
+        v.company.toLowerCase().includes(search) ||
+        v.category.toLowerCase().includes(search)
+    );
+  }, [vendors, searchText]);
 
-    // Sort
-    filtered = [...filtered].sort((a, b) => {
-      const aVal = a[sortColumn as keyof Vendor];
-      const bVal = b[sortColumn as keyof Vendor];
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [vendors, searchText, sortColumn, sortDirection]);
+  const sortedVendors = useMemo(
+    () => sortRows(filteredVendors, sortColumns),
+    [filteredVendors, sortColumns]
+  );
 
   const columns: Column<Vendor>[] = [
     { key: 'id', name: 'ID', width: 100, frozen: true },
@@ -58,15 +50,6 @@ export function VendorsGrid({ onSelectVendor }: Props) {
     { key: 'city', name: 'City', width: 130, sortable: true },
     { key: 'country', name: 'Country', width: 130, sortable: true },
   ];
-
-  const handleSort = (columnKey: string) => {
-    if (sortColumn === columnKey) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(columnKey);
-      setSortDirection('asc');
-    }
-  };
 
   return (
     <div className="w-full h-full flex flex-col gap-4">
@@ -86,12 +69,14 @@ export function VendorsGrid({ onSelectVendor }: Props) {
       <div className="flex-1 min-h-0">
         <DataGrid
           columns={columns}
-          rows={filteredVendors}
+          rows={sortedVendors}
           rowKeyGetter={(row) => row.id}
           className="fill-grid"
           style={{ height: '600px' }}
           headerRowHeight={40}
           rowHeight={35}
+          sortColumns={sortColumns}
+          onSortColumnsChange={setSortColumns}
         />
       </div>
     </div>

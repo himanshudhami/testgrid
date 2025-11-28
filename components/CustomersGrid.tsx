@@ -1,51 +1,43 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DataGrid, type Column } from 'react-data-grid';
+import { DataGrid, type Column, type SortColumn } from 'react-data-grid';
 import { useLiveQuery } from '@tanstack/react-db';
 import { customersCollection } from '@/lib/db/client';
 import type { Customer } from '@/lib/types';
+import { sortRows } from '@/lib/utils/sorting';
 import 'react-data-grid/lib/styles.css';
 
-interface Props {
-  onSelectCustomer?: (customer: Customer) => void;
-}
-
-export function CustomersGrid({ onSelectCustomer }: Props) {
+export function CustomersGrid() {
   const [searchText, setSearchText] = useState('');
-  const [sortColumn, setSortColumn] = useState<string>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([
+    { columnKey: 'name', direction: 'ASC' },
+  ]);
 
   // Use TanStack DB reactive query
   const { data: customersData } = useLiveQuery(() => customersCollection);
-  const customers = (customersData ?? []) as unknown as Customer[];
+  const customers = useMemo(
+    () => (customersData ?? []) as unknown as Customer[],
+    [customersData]
+  );
 
-  // Filter and sort customers
+  // Filter customers
   const filteredCustomers = useMemo(() => {
-    let filtered = customers;
+    if (!searchText) return customers;
 
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      filtered = customers.filter(
-        (c) =>
-          c.name.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search) ||
-          c.company.toLowerCase().includes(search)
-      );
-    }
+    const search = searchText.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(search) ||
+        c.email.toLowerCase().includes(search) ||
+        c.company.toLowerCase().includes(search)
+    );
+  }, [customers, searchText]);
 
-    // Sort
-    filtered = [...filtered].sort((a, b) => {
-      const aVal = a[sortColumn as keyof Customer];
-      const bVal = b[sortColumn as keyof Customer];
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [customers, searchText, sortColumn, sortDirection]);
+  const sortedCustomers = useMemo(
+    () => sortRows(filteredCustomers, sortColumns),
+    [filteredCustomers, sortColumns]
+  );
 
   const columns: Column<Customer>[] = [
     { key: 'id', name: 'ID', width: 100, frozen: true },
@@ -56,15 +48,6 @@ export function CustomersGrid({ onSelectCustomer }: Props) {
     { key: 'city', name: 'City', width: 130, sortable: true },
     { key: 'country', name: 'Country', width: 130, sortable: true },
   ];
-
-  const handleSort = (columnKey: string) => {
-    if (sortColumn === columnKey) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(columnKey);
-      setSortDirection('asc');
-    }
-  };
 
   return (
     <div className="w-full h-full flex flex-col gap-4">
@@ -84,12 +67,14 @@ export function CustomersGrid({ onSelectCustomer }: Props) {
       <div className="flex-1 min-h-0">
         <DataGrid
           columns={columns}
-          rows={filteredCustomers}
+          rows={sortedCustomers}
           rowKeyGetter={(row) => row.id}
           className="fill-grid"
           style={{ height: '600px' }}
           headerRowHeight={40}
           rowHeight={35}
+          sortColumns={sortColumns}
+          onSortColumnsChange={setSortColumns}
         />
       </div>
     </div>
